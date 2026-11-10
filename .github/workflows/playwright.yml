@@ -4,8 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  schedule:
-    - cron: '0 2 * * *' # nightly, 02:00 UTC
   workflow_dispatch:
     inputs:
       tag:

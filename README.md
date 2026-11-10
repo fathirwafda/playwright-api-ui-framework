@@ -16,8 +16,8 @@ The target is [Practice Software Testing "Toolshop"](https://practicesoftwaretes
 demo shop with a real REST API ([Swagger](https://api.practicesoftwaretesting.com/api/documentation)).
 Everything runs from a fresh clone against the live demo, with no configuration.
 
-> **Where each suite runs.** CI runs static checks and the API suite on every push, PR and
-> nightly. The UI and hybrid suites run from a local machine: the demo sits behind Cloudflare,
+> **Where each suite runs.** CI runs static checks and the API suite on every push and PR
+> (no scheduled runs). The UI and hybrid suites run from a local machine: the demo sits behind Cloudflare,
 > which serves a "Verify you are human" challenge to GitHub-hosted runner IPs. The suite does not
 > try to get past that page; it detects it and stops with a clear message
 > ([details](#ci-pipeline)). Last local run (11 November 2026, macOS, Chromium): setup, 36
@@ -300,7 +300,7 @@ change data never use them: they register their own users.
 
 ```mermaid
 flowchart LR
-    T{{"push to main · PR · nightly 02:00 UTC<br/>manual (optional tag → --grep)"}}
+    T{{"push to main · PR<br/>manual (optional tag → --grep)"}}
     T --> S["static<br/>eslint · tsc · prettier"]
     S --> A["api<br/>--project=api"]
     A --> BA[/"blob-report-api"/]
@@ -321,7 +321,7 @@ Cloudflare "Performing security verification / Verify you are human" page instea
 Bot protection on a public site commonly treats datacenter IPs this way. Getting past it would
 mean defeating the site's protection, which this project does not do. So:
 
-- push, PR and the nightly schedule run `static` and `api`;
+- push and PR run `static` and `api` (there is no scheduled run);
 - the `ui` job (2 shards, sharding and blob reports unchanged) runs only on a manual
   `workflow_dispatch` with `run_ui: true`, for example from a self-hosted runner or if the site
   stops blocking;
@@ -439,7 +439,7 @@ for practice.
 
 - Generate the client method signatures from the OpenAPI spec and keep zod for runtime checks.
 - Run the UI and hybrid suites on a self-hosted runner (non-datacenter IP) so they are back in CI,
-  then add the Firefox projects to that nightly run.
+  then add the Firefox projects to a scheduled run there.
 - Contract drift job: diff the Swagger document against the zod schemas and open an issue on change.
 - Visual comparison of a few key components inside the Playwright Docker image, with committed
   Linux baselines.
