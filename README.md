@@ -1,6 +1,7 @@
 # playwright-api-ui-framework
 
-[![Playwright](https://github.com/fathirwafda/playwright-api-ui-framework/actions/workflows/playwright.yml/badge.svg)](https://github.com/fathirwafda/playwright-api-ui-framework/actions/workflows/playwright.yml)
+[![CI: static + API](https://github.com/fathirwafda/playwright-api-ui-framework/actions/workflows/playwright.yml/badge.svg)](https://github.com/fathirwafda/playwright-api-ui-framework/actions/workflows/playwright.yml)
+![UI + hybrid: verified locally](https://img.shields.io/badge/UI%20%2B%20hybrid-verified%20locally-blue)
 ![Playwright 1.65](https://img.shields.io/badge/Playwright-1.65-2EAD33)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 ![zod](https://img.shields.io/badge/contracts-zod-3068b7)
@@ -14,6 +15,14 @@ under test instead of clicking through login forms and shopping flows to get the
 The target is [Practice Software Testing "Toolshop"](https://practicesoftwaretesting.com), a public
 demo shop with a real REST API ([Swagger](https://api.practicesoftwaretesting.com/api/documentation)).
 Everything runs from a fresh clone against the live demo, with no configuration.
+
+> **Where each suite runs.** CI runs static checks and the API suite on every push, PR and
+> nightly. The UI and hybrid suites run from a local machine: the demo sits behind Cloudflare,
+> which serves a "Verify you are human" challenge to GitHub-hosted runner IPs. The suite does not
+> try to get past that page; it detects it and stops with a clear message
+> ([details](#ci-pipeline)). Last local run (11 November 2026, macOS, Chromium): setup, 36
+> desktop UI/hybrid tests, 2 serial write tests, 5 mobile tests and teardown, **45 passed**; API
+> suite **43 passed**.
 
 ## Contents
 
@@ -50,15 +59,15 @@ Everything runs from a fresh clone against the live demo, with no configuration.
 
 ## Tech stack
 
-| Area          | Tools                                                                                              |
-| ------------- | -------------------------------------------------------------------------------------------------- |
-| Language      | TypeScript 6, `strict` + `noUncheckedIndexedAccess`                                                |
-| Test runner   | `@playwright/test` 1.65 (browser + `APIRequestContext`)                                            |
-| Contracts     | `zod` 4                                                                                            |
-| Test data     | `@faker-js/faker`                                                                                  |
-| Accessibility | `@axe-core/playwright` (WCAG 2.1 A/AA)                                                             |
-| Code quality  | ESLint flat config (`typescript-eslint` strict-type-checked, `eslint-plugin-playwright`), Prettier |
-| CI            | GitHub Actions: static checks, API job, UI job sharded 2 ways, merged HTML report                  |
+| Area          | Tools                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Language      | TypeScript 6, `strict` + `noUncheckedIndexedAccess`                                                                |
+| Test runner   | `@playwright/test` 1.65 (browser + `APIRequestContext`)                                                            |
+| Contracts     | `zod` 4                                                                                                            |
+| Test data     | `@faker-js/faker`                                                                                                  |
+| Accessibility | `@axe-core/playwright` (WCAG 2.1 A/AA)                                                                             |
+| Code quality  | ESLint flat config (`typescript-eslint` strict-type-checked, `eslint-plugin-playwright`), Prettier                 |
+| CI            | GitHub Actions: static checks + API job on every run; UI job (sharded 2 ways) on manual opt-in; merged HTML report |
 
 ## Architecture
 
@@ -194,7 +203,7 @@ asserts the mock was hit.
 | Mobile viewport: collapsed nav and filters, no sideways scroll |     | ✅  |        |
 | Known defects pinned with `test.fail()` / pinned status        | ✅  |     |   ✅   |
 
-Current size: 43 API tests, 36 desktop browser tests (34 parallel + 2 serial write tests, 12 of
+Current size: 43 API tests, 38 desktop browser tests (36 parallel + 2 serial write tests, 12 of
 them tagged `@hybrid`), 5 mobile tests, plus 1 setup and 1 teardown step. Contract validation runs
 inside every typed client call, so it is part of every API, UI and hybrid test that uses the API.
 
@@ -205,7 +214,7 @@ Tags: `@api`, `@ui`, `@hybrid` (layer), `@smoke` (a few critical paths per area)
 
 ```text
 .
-├── .github/workflows/playwright.yml  # static → api + ui (2 shards) → merged HTML report
+├── .github/workflows/playwright.yml  # static → api → merged HTML report; ui (2 shards) on manual opt-in
 ├── src/
 │   ├── api/          # BaseClient (auth header, timing, status + schema check) and one client per resource
 │   ├── schemas/      # zod contracts: catalog, cart, account, common (pagination, errors, ULIDs)
@@ -217,7 +226,7 @@ Tags: `@api`, `@ui`, `@hybrid` (layer), `@smoke` (a few critical paths per area)
 ├── tests/
 │   ├── setup/        # run-user.setup.ts (register + API login + storageState), run-user.teardown.ts
 │   ├── api/          # auth, products, catalog, cart, users + invoices
-│   ├── ui/           # search, filters-sorting, product-detail, cart, checkout, login, accessibility, responsive
+│   ├── ui/           # search, filters-sorting, product-detail, cart, checkout, login, a11y, responsive, bot-challenge-detection
 │   └── hybrid/       # api-login, api-seeded-state, ui-to-api, network-mocking
 ├── playwright.config.ts              # projects: api, setup, teardown, chromium, chromium-write, mobile (+ firefox opt-in)
 ├── eslint.config.mjs
@@ -257,6 +266,12 @@ npm run report                            # open the last HTML report
 npm run lint && npm run typecheck && npm run format:check
 ```
 
+Run the browser suites (`test:ui`, `test:hybrid`, `test:mobile`, `npm test`) from a local machine
+or another residential/office network. From cloud IPs the site may answer with a bot-protection
+challenge; the `setup` project then fails in a few seconds with _"The public site served a
+bot-protection challenge (common from cloud CI IPs). Run UI tests from a local machine; see
+README."_ and registers no user. `npm run test:api` works from anywhere, including CI.
+
 Filter by tag with `--grep`, for example `npx playwright test --project=chromium --grep @hybrid`
 or `--grep-invert @known-issue`.
 
@@ -285,24 +300,42 @@ change data never use them: they register their own users.
 
 ```mermaid
 flowchart LR
-    T{{"push to main · PR<br/>nightly 02:00 UTC<br/>manual (optional tag → --grep)"}}
+    T{{"push to main · PR · nightly 02:00 UTC<br/>manual (optional tag → --grep)"}}
     T --> S["static<br/>eslint · tsc · prettier"]
     S --> A["api<br/>--project=api"]
-    S --> U1["ui shard 1/2<br/>setup → chromium, chromium-write,<br/>mobile → teardown"]
-    S --> U2["ui shard 2/2<br/>setup → chromium, chromium-write,<br/>mobile → teardown"]
     A --> BA[/"blob-report-api"/]
-    U1 --> B1[/"blob-report-ui-1"/]
-    U2 --> B2[/"blob-report-ui-2"/]
     BA --> M["report<br/>playwright merge-reports"]
-    B1 --> M
-    B2 --> M
     M --> H[/"playwright-report<br/>(one HTML report)"/]
+
+    D{{"manual only:<br/>run_ui = true"}} -.-> U1["ui shard 1/2<br/>setup → chromium, chromium-write,<br/>mobile → teardown"]
+    D -.-> U2["ui shard 2/2"]
+    S -.-> U1
+    S -.-> U2
+    U1 -.-> B1[/"blob-report-ui-1"/] -.-> M
+    U2 -.-> B2[/"blob-report-ui-2"/] -.-> M
 ```
+
+**Why CI runs the API suite only.** The first CI run on GitHub-hosted runners passed the API job,
+but both UI shards failed in the `setup` project: practicesoftwaretesting.com answered with a
+Cloudflare "Performing security verification / Verify you are human" page instead of the app.
+Bot protection on a public site commonly treats datacenter IPs this way. Getting past it would
+mean defeating the site's protection, which this project does not do. So:
+
+- push, PR and the nightly schedule run `static` and `api`;
+- the `ui` job (2 shards, sharding and blob reports unchanged) runs only on a manual
+  `workflow_dispatch` with `run_ui: true`, for example from a self-hosted runner or if the site
+  stops blocking;
+- the `setup` project checks the home page before registering anything and fails fast with a clear
+  message if it sees the challenge (title "Just a moment…" or the verification text);
+- the `report` job runs with `if: !cancelled()` and merges whichever blob reports exist, so it
+  works whether the UI job ran, failed or was skipped.
+
+Other details:
 
 - The manual `tag` input reaches the shell through `env`, never through `${{ }}` inside `run`, so
   it cannot inject commands.
-- `fail-fast: false` on the shards and `if: !cancelled()` on uploads and the merge job: one failing
-  job still produces the full report.
+- `fail-fast: false` on the shards and `if: !cancelled()` on uploads: one failing job still
+  produces the full report.
 - Each shard runs the `setup` project for its own tests and registers its own run user, so shards
   never share a session.
 - Action majors are pinned: `actions/checkout@v4`, `actions/setup-node@v4`,
@@ -361,6 +394,8 @@ only constants are slugs and a search term.
 - Token expiry is handled by the `storageState` fixture, not by retries.
 - CI retries twice with traces and video, so a flaky test is reported as flaky, not hidden.
   Locally there are no retries.
+- A bot-protection page is detected and reported as such, not left to surface as a locator
+  timeout.
 
 **Known defects as tests.** A known defect is asserted as correct behaviour and marked
 `test.fail()`: it passes while the bug exists and turns red when it is fixed, so the note cannot
@@ -378,31 +413,33 @@ any kind, and cleanup through the admin account for every user the suite registe
 Observed while building the suite (November 2026). Some are probably deliberate: the site exists
 for practice.
 
-| Area | Behaviour                                                                                                                         | How the suite handles it                                                                         |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Data | The database is reseeded regularly; all product, category and brand ids change                                                    | Nothing hard-coded; expectations come from the API at run time                                   |
-| Data | Category "Storage Solutions" has the slug `storage solutions` (with a space)                                                      | `test.fail()` known-issue test                                                                   |
-| API  | `GET /products?sort=bogus,asc` returns `500 Something went wrong` instead of a 4xx                                                | Status pinned, `known-issue` annotation                                                          |
-| API  | Error bodies come in four shapes: `{error}`, `{message}`, `{message, errors}`, and a bare field map (registration)                | One zod schema per shape                                                                         |
-| API  | An empty login body answers `401`, not `422`                                                                                      | Asserted explicitly, with a comment                                                              |
-| API  | Reading another user answers `404 "You are not authorized to view this user."` rather than `403`                                  | Asserted explicitly, with a comment                                                              |
-| API  | Search and related-products responses omit `category.slug`; related omits `co2_rating`; cart lines omit image, brand and category | Explicit schema variants per endpoint                                                            |
-| API  | Tokens expire after 300 s; `GET /users/refresh` revokes the old token                                                             | Tested; storageState fixture re-logs in when a token is stale                                    |
-| API  | Users who own invoices cannot be deleted (`409`)                                                                                  | The run user that placed an order stays until the next reset; reported as a `cleanup` annotation |
-| API  | The user record tracks `failed_login_attempts`                                                                                    | Negative login tests use non-existent emails, never the shared demo accounts                     |
-| API  | Occasional slow responses (one call took 8 s) and, once, `Cart not found` for a cart created moments earlier (not reproduced)     | Generous timeouts; CI retries                                                                    |
-| UI   | The product list uses the HTTP `QUERY` method with a JSON body                                                                    | `ProductsClient.query()` and method-aware mocks                                                  |
-| UI   | When `QUERY /products` fails, the grid is just empty: no message, no retry                                                        | `test.fail()` known-issue test, plus a test that the page stays usable                           |
-| UI   | `data-test="filters"` is used on both the mobile toggle button and the panel                                                      | Locators scope by tag (`button[...]`, `div[...]`)                                                |
-| UI   | Related-product cards have no `data-test` attribute                                                                               | Located by `a.card[href^="/product/"]`                                                           |
-| UI   | Header still shows the old first name right after a profile update, until reload (seen once manually, not covered by a test)      | Not asserted                                                                                     |
-| A11y | Login: the show/hide password button has no accessible name (critical, `button-name`)                                             | In the a11y baseline                                                                             |
-| A11y | Language button label does not match its text; filter lists contain non-`li` children (serious)                                   | Reported, not blocking                                                                           |
+| Area | Behaviour                                                                                                                         | How the suite handles it                                                                              |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Data | The database is reseeded regularly; all product, category and brand ids change                                                    | Nothing hard-coded; expectations come from the API at run time                                        |
+| Data | Category "Storage Solutions" has the slug `storage solutions` (with a space)                                                      | `test.fail()` known-issue test                                                                        |
+| API  | `GET /products?sort=bogus,asc` returns `500 Something went wrong` instead of a 4xx                                                | Status pinned, `known-issue` annotation                                                               |
+| API  | Error bodies come in four shapes: `{error}`, `{message}`, `{message, errors}`, and a bare field map (registration)                | One zod schema per shape                                                                              |
+| API  | An empty login body answers `401`, not `422`                                                                                      | Asserted explicitly, with a comment                                                                   |
+| API  | Reading another user answers `404 "You are not authorized to view this user."` rather than `403`                                  | Asserted explicitly, with a comment                                                                   |
+| API  | Search and related-products responses omit `category.slug`; related omits `co2_rating`; cart lines omit image, brand and category | Explicit schema variants per endpoint                                                                 |
+| API  | Tokens expire after 300 s; `GET /users/refresh` revokes the old token                                                             | Tested; storageState fixture re-logs in when a token is stale                                         |
+| API  | Users who own invoices cannot be deleted (`409`)                                                                                  | The run user that placed an order stays until the next reset; reported as a `cleanup` annotation      |
+| API  | The user record tracks `failed_login_attempts`                                                                                    | Negative login tests use non-existent emails, never the shared demo accounts                          |
+| API  | Occasional slow responses (one call took 8 s) and, once, `Cart not found` for a cart created moments earlier (not reproduced)     | Generous timeouts; CI retries                                                                         |
+| Site | Cloudflare serves a "Verify you are human" challenge to GitHub-hosted runner IPs                                                  | UI and hybrid suites run locally; CI runs the API suite; `setup` detects the challenge and fails fast |
+| UI   | The product list uses the HTTP `QUERY` method with a JSON body                                                                    | `ProductsClient.query()` and method-aware mocks                                                       |
+| UI   | When `QUERY /products` fails, the grid is just empty: no message, no retry                                                        | `test.fail()` known-issue test, plus a test that the page stays usable                                |
+| UI   | `data-test="filters"` is used on both the mobile toggle button and the panel                                                      | Locators scope by tag (`button[...]`, `div[...]`)                                                     |
+| UI   | Related-product cards have no `data-test` attribute                                                                               | Located by `a.card[href^="/product/"]`                                                                |
+| UI   | Header still shows the old first name right after a profile update, until reload (seen once manually, not covered by a test)      | Not asserted                                                                                          |
+| A11y | Login: the show/hide password button has no accessible name (critical, `button-name`)                                             | In the a11y baseline                                                                                  |
+| A11y | Language button label does not match its text; filter lists contain non-`li` children (serious)                                   | Reported, not blocking                                                                                |
 
 ## Roadmap
 
 - Generate the client method signatures from the OpenAPI spec and keep zod for runtime checks.
-- Run the Firefox projects on the nightly schedule.
+- Run the UI and hybrid suites on a self-hosted runner (non-datacenter IP) so they are back in CI,
+  then add the Firefox projects to that nightly run.
 - Contract drift job: diff the Swagger document against the zod schemas and open an issue on change.
 - Visual comparison of a few key components inside the Playwright Docker image, with committed
   Linux baselines.

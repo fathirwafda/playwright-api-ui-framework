@@ -35,17 +35,22 @@ test.describe('Filters and sorting', { tag: '@ui' }, () => {
 
   test('price slider caps every visible price', async ({ api, catalogPage }) => {
     const max = 40;
-    const { body: expected } = await api.products.query({
+    // More than one page matches, and unsorted order is not stable between requests, so the
+    // first UI page is compared with the full API result set rather than with API page 1.
+    const matching = await api.products.all({ ...UI_DEFAULT_FILTER, price: { min: 1, max } });
+    const allowed = new Set(matching.map((p) => p.name));
+    const { body: firstPage } = await api.products.query({
       ...UI_DEFAULT_FILTER,
       price: { min: 1, max },
     });
 
-    // Each key press sends a request; wait until the grid matches the final filter.
+    // Each key press sends a request; wait until the grid reflects the final filter.
     await catalogPage.filters.setMaxPrice(max);
     await expect(catalogPage.filters.maxPriceHandle).toHaveAttribute('aria-valuenow', String(max));
     await expect
-      .poll(async () => (await catalogPage.names()).sort())
-      .toEqual(expected.data.map((p) => p.name).sort());
+      .poll(async () => (await catalogPage.names()).filter((name) => !allowed.has(name)))
+      .toEqual([]);
+    await expect(catalogPage.cards).toHaveCount(firstPage.data.length);
 
     for (const price of await catalogPage.prices()) expect.soft(price).toBeLessThanOrEqual(max);
   });

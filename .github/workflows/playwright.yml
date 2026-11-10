@@ -12,6 +12,11 @@ on:
         description: 'Optional tag filter passed to --grep, e.g. @smoke or @hybrid'
         required: false
         default: ''
+      run_ui:
+        description: 'Also run the UI + hybrid shards (the public site usually blocks CI IPs)'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: playwright-${{ github.ref }}
@@ -63,9 +68,15 @@ jobs:
           path: blob-report/
           retention-days: 3
 
+  # The public demo sits behind Cloudflare, which serves a "Verify you are human" challenge to
+  # GitHub-hosted (datacenter) runner IPs. The suite does not try to get past it, so UI and
+  # hybrid tests are verified from a local machine. The job stays here for a manual run with
+  # run_ui: true (useful from a self-hosted runner or if the site stops blocking), and the setup
+  # project fails fast with a clear message when the challenge appears.
   ui:
     name: UI + hybrid tests (shard ${{ matrix.shard }}/2)
     needs: static
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_ui }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -99,6 +110,7 @@ jobs:
   report:
     name: Merge reports
     needs: [api, ui]
+    # Runs whether the ui job ran, failed or was skipped; merges whatever blob reports exist.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
