@@ -1,0 +1,13 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.auth/
+*.log
+.DS_Store
+
+# Local configuration only; every variable is documented in README (Configuration).
+.env
+.env.*
+.env.example

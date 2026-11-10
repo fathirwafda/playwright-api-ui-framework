@@ -1,0 +1,43 @@
+{
+  "name": "playwright-api-ui-framework",
+  "version": "1.0.0",
+  "description": "A layered Playwright + TypeScript test framework that combines API and UI testing: typed API clients, zod contracts, composed fixtures, API-seeded UI tests and network mocking.",
+  "private": true,
+  "license": "MIT",
+  "author": "Fathir Wafda",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=chromium --project=chromium-write",
+    "test:mobile": "playwright test --project=mobile",
+    "test:hybrid": "playwright test --project=chromium --project=chromium-write --grep @hybrid",
+    "test:smoke": "playwright test --project=api --project=chromium --project=chromium-write --grep @smoke",
+    "test:a11y": "playwright test --project=chromium --grep @a11y",
+    "test:firefox": "FIREFOX=1 playwright test --project=firefox --project=firefox-write",
+    "report": "playwright show-report",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@faker-js/faker": "^10.6.0",
+    "@playwright/test": "1.65.0",
+    "@types/node": "^20.19.43",
+    "dotenv": "^18.0.10",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-playwright": "^2.12.2",
+    "prettier": "^3.9.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "zod": "^4.6.7"
+  }
+}
